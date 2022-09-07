@@ -1,4 +1,5 @@
 #define SDL_MAIN_HANDLED
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -12,15 +13,36 @@ using namespace std;
 std::string FILENAME = "marvel-wallpaper.bmp";
 std::string SAIDA = "saida.bmp";
 
+std::string buttonImages[8] =
+    {
+        "new.bmp",
+        "diskette.bmp",
+        "linha-diagonal.bmp",
+        "retangulo.bmp",
+        "hexagono.bmp",
+        "circulo.bmp",
+        "linha-curva.bmp",
+        "fill.bmp"
+        ""};
+
 // Estrutura para representar pontos
 typedef struct
 {
     int x, y;
 } Point;
 
+typedef struct
+{
+    Point start, end;
+    int actionId;
+} Button;
+
+Button buttons[10];
+int buttonCount = 0;
+
 // vari�veis necess�rias para o SDL
 unsigned int *pixels;
-int width, height;
+int canvasWidth, canvasHeight, width, height;
 SDL_Surface *window_surface;
 SDL_Surface *imagem;
 SDL_Renderer *renderer;
@@ -28,10 +50,68 @@ SDL_Renderer *renderer;
 // T�tulo da janela
 std::string titulo = "SDL BMP ";
 
-// Valores RGB para a cor de fundo da janela
-const int VERMELHO = 0;
-const int VERDE = 0;
-const int AZUL = 0;
+Uint32 selectedColor = 0;
+
+SDL_Surface *getImage(std::string imagePath, int targetWidth, int targetHeight)
+{
+    SDL_Surface *sourceImage = SDL_LoadBMP(imagePath.c_str());
+
+    if (sourceImage)
+    {
+        int width = sourceImage->w;
+        int height = sourceImage->h;
+
+        SDL_Rect sourceDimensions;
+        sourceDimensions.x = 0;
+        sourceDimensions.y = 0;
+        sourceDimensions.w = width;
+        sourceDimensions.h = height;
+
+        float scaleW = (float)targetWidth / (float)width;
+        float scaleH = (float)targetHeight / (float)height;
+
+        SDL_Rect targetDimensions;
+        targetDimensions.x = 0;
+        targetDimensions.y = 0;
+        targetDimensions.w = (int)(width * scaleW);
+        targetDimensions.h = (int)(height * scaleH);
+
+        SDL_Surface *surface32 = SDL_CreateRGBSurface(
+            sourceImage->flags,
+            sourceDimensions.w,
+            sourceDimensions.h,
+            32,
+            sourceImage->format->Rmask,
+            sourceImage->format->Gmask,
+            sourceImage->format->Bmask,
+            sourceImage->format->Amask);
+
+        SDL_BlitSurface(sourceImage, NULL, surface32, NULL);
+
+        SDL_Surface *scaleSurface = SDL_CreateRGBSurface(
+            surface32->flags,
+            targetDimensions.w,
+            targetDimensions.h,
+            surface32->format->BitsPerPixel,
+            surface32->format->Rmask,
+            surface32->format->Gmask,
+            surface32->format->Bmask,
+            surface32->format->Amask);
+
+        SDL_BlitScaled(surface32, NULL, scaleSurface, NULL);
+
+        SDL_FreeSurface(sourceImage);
+
+        sourceImage = scaleSurface;
+
+        SDL_FreeSurface(surface32);
+        surface32 = NULL;
+
+        return sourceImage;
+    }
+
+    return NULL;
+}
 
 // Gera uma estrutura Point a partir de valores para x e y
 Point getPoint(int x, int y)
@@ -43,8 +123,11 @@ Point getPoint(int x, int y)
 }
 
 // Obt�m a cor de um pixel de uma determinada posi��o
-Uint32 getPixel(int x, int y)
+Uint32 getPixel(Point position)
 {
+    int x = position.x;
+    int y = position.y;
+
     if ((x >= 0 && x <= width) && (y >= 0 && y <= height))
         return pixels[x + width * y];
     else
@@ -65,6 +148,11 @@ void setPixel(int x, int y, int r, int g, int b, int a)
 void setPixel(int x, int y, int r, int g, int b)
 {
     setPixel(x, y, r, g, b, 255);
+}
+
+void setPixel(Point point, int r, int g, int b)
+{
+    setPixel(point.x, point.y, r, g, b, 255);
 }
 
 // Mostra na barra de t�tulo da janela a posi��o
@@ -107,14 +195,13 @@ Uint32 RGB(int r, int g, int b, int a)
 // a transpar�ncia � sempre 255 (imagem opaca)
 Uint32 RGB(int r, int g, int b)
 {
-    return SDL_MapRGBA(window_surface->format, r, g, b, 255);
+    return RGB(r, g, b, 255);
 }
 
 // retorna um componente de cor de uma cor RGB informada
 // aceita os par�metros 'r', 'R','g', 'G','b' e 'B',
 Uint8 getColorComponent(Uint32 pixel, char component)
 {
-
     Uint32 mask;
 
     switch (component)
@@ -140,7 +227,7 @@ Uint8 getColorComponent(Uint32 pixel, char component)
     return (Uint8)pixel;
 }
 
-void bresenham(int x1, int y1, int x2, int y2, Uint32 cor)
+void drawBresenham(int x1, int y1, int x2, int y2, Uint32 cor)
 {
     int x, y, dx, dy, dx1, dy1, px, py, xe, ye, i;
 
@@ -229,39 +316,389 @@ void bresenham(int x1, int y1, int x2, int y2, Uint32 cor)
     }
 }
 
-void quadriculado(int distancia, Uint32 cor)
+void drawBresenham(Point p1, Point p2, Uint32 cor)
 {
-    for (int x = 0; x < width; x++)
+    return drawBresenham(p1.x, p1.y, p2.x, p2.y, cor);
+}
+
+void drawRectangle(int x1, int y1, int x2, int y2, Uint32 color)
+{
+    drawBresenham(x1, y1, x2, y1, color);
+    drawBresenham(x2, y1, x2, y2, color);
+    drawBresenham(x1, y2, x2, y2, color);
+    drawBresenham(x1, y1, x1, y2, color);
+}
+
+void drawRectangle(int x1, int y1, int x2, int y2)
+{
+    drawRectangle(x1, y1, x2, y2, selectedColor);
+}
+
+void drawRectangle(Point start, Point end, Uint32 color)
+{
+    drawRectangle(start.x, start.y, end.x, end.y, color);
+}
+
+void drawRectangle(Point start, Point end)
+{
+    drawRectangle(start, end, selectedColor);
+}
+
+// TRAB1 preencher (REVISAR)
+void floodFill(int x, int y, Uint32 newColor, Uint32 oldColor)
+{
+    if (y < 0 || y > height - 1 || x < 0 || x > width - 1)
     {
-        if (x % distancia == 0)
-        {
-            bresenham(x, 0, x, height - 1, cor);
-        }
+        return;
     }
 
-    for (int y = 0; y < height; y++)
+    stack<Point> st;
+
+    st.push(getPoint(x, y));
+
+    while (st.size() > 0)
     {
-        if (y % distancia == 0)
+        Point p = st.top();
+
+        st.pop();
+
+        int x = p.x;
+        int y = p.y;
+
+        if (y < 0 || y > height - 1 || x < 0 || x > width - 1)
+            continue;
+
+        if (getPixel(getPoint(x, y)) == oldColor)
         {
-            bresenham(0, y, width - 1, y, cor);
+            setPixel(x, y, newColor);
+
+            st.push(getPoint(x + 1, y));
+            st.push(getPoint(x - 1, y));
+            st.push(getPoint(x, y + 1));
+            st.push(getPoint(x, y - 1));
         }
     }
+}
+
+void floodFill(Point p, Uint32 newColor, Uint32 oldColor)
+{
+    floodFill(p.x, p.y, newColor, oldColor);
 }
 
 // Aqui ocorrem as chamadas das fun��es a ser exibidas na janela
 void display()
 {
-    // quadriculado(20, RGB(255, 0, 0));
+}
+
+int getClickedButton(int x, int y)
+{
+    int i = 0;
+
+    for (; i < buttonCount; i++)
+    {
+        Button button = buttons[i];
+
+        if (x > button.start.x && x < button.end.x && y > button.start.y && y < button.end.y)
+            return button.actionId;
+    }
+
+    return -1;
 }
 
 void reset_screen()
 {
-    for (int y = 0; y < height; ++y)
+    for (int y = 0; y < canvasHeight; ++y)
     {
-        for (int x = 0; x < width; ++x)
+        for (int x = 0; x < canvasWidth; ++x)
         {
-            setPixel(x, y, RGB(VERMELHO, VERDE, AZUL));
+            setPixel(x, y, RGB(255, 255, 255));
         }
+    }
+}
+
+// ----------------------------------------------------------------
+// Draw window resources
+// ----------------------------------------------------------------
+void drawColorPicker()
+{
+    imagem = getImage("rgb.bmp", 110, 50);
+
+    SDL_Rect rectPos;
+
+    rectPos.x = 410;
+    rectPos.y = 490;
+    SDL_BlitSurface(imagem, NULL, window_surface, &rectPos);
+
+    Button button;
+
+    Point start;
+    Point end;
+
+    start.x = 410;
+    start.y = 490;
+
+    end.x = 410 + 110;
+    end.y = 490 + 50;
+
+    button.start = start;
+    button.end = end;
+
+    button.actionId = 8;
+
+    buttons[8] = button;
+
+    buttonCount++;
+}
+
+void drawButtons()
+{
+    int startX = 0;
+    int endX = width - 1;
+
+    int startY = canvasHeight + 1;
+    int endY = height - 1;
+
+    Uint32 backgroundColor = RGB(100, 50, 255);
+    Uint32 buttonColor = RGB(255, 255, 255);
+
+    int buttonSize = 50;
+
+    int buttonOffset = 10;
+
+    drawRectangle(startX, startY, endX, endY, backgroundColor);
+
+    floodFill(startX + 10, 10 + startY, backgroundColor, 0);
+
+    int i = 0;
+
+    for (; i < 8; i++)
+    {
+        Button button;
+
+        Point start;
+        Point end;
+
+        start.x = (i * buttonSize) + startX + buttonOffset;
+        start.y = buttonOffset + startY;
+
+        end.x = (i * buttonSize) + startX + buttonSize;
+        end.y = buttonSize + buttonOffset + startY;
+
+        button.start = start;
+        button.end = end;
+
+        button.actionId = i;
+
+        imagem = getImage(buttonImages[i], buttonSize - 10, buttonSize - 10);
+
+        SDL_Rect rectPos;
+
+        rectPos.x = start.x;
+        rectPos.y = start.y;
+
+        drawRectangle(start, end, buttonColor);
+
+        floodFill((i * buttonSize) + startX + buttonOffset * 2,
+                  buttonOffset * 2 + startY,
+                  buttonColor,
+                  backgroundColor);
+
+        SDL_BlitSurface(imagem, NULL, window_surface, &rectPos);
+
+        buttons[buttonCount] = button;
+
+        buttonCount++;
+    }
+}
+
+void drawToolBar()
+{
+    drawButtons();
+    drawColorPicker();
+}
+
+void drawScreen()
+{
+    drawToolBar();
+    display();
+}
+// ----------------------------------------------------------------
+
+// ----------------------------------------------------------------
+// Button actions
+// ----------------------------------------------------------------
+
+void drawLine_clicked()
+{
+    int count = 0;
+    Point firstPoint, secondPoint;
+
+    while (count < 2)
+    {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                /*Se o bot�o esquerdo do mouse � pressionado */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    if (count == 0)
+                        firstPoint = getPoint(event.motion.x, event.motion.y);
+                    else
+                    {
+                        secondPoint = getPoint(event.motion.x, event.motion.y);
+                    }
+
+                    count++;
+                }
+            }
+        }
+    }
+
+    drawBresenham(firstPoint, secondPoint, selectedColor);
+}
+
+void drawRectangle_clicked()
+{
+    int count = 0;
+    Point firstPoint, secondPoint;
+
+    while (count < 2)
+    {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                /*Se o bot�o esquerdo do mouse � pressionado */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    if (count == 0)
+                        firstPoint = getPoint(event.motion.x, event.motion.y);
+                    else
+                    {
+                        secondPoint = getPoint(event.motion.x, event.motion.y);
+                    }
+
+                    count++;
+                }
+            }
+        }
+    }
+
+    drawRectangle(firstPoint, secondPoint, selectedColor);
+}
+
+void drawPolygon_clicked()
+{
+    int rightCliked = 0;
+    int count = 0;
+    Point previousPoint, currentPoint, firstPoint;
+
+    while (rightCliked == 0)
+    {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                /*Se o bot�o esquerdo do mouse � pressionado */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    if (count == 0)
+                        firstPoint = currentPoint = getPoint(event.motion.x, event.motion.y);
+                    else
+                    {
+                        previousPoint = currentPoint;
+                        currentPoint = getPoint(event.motion.x, event.motion.y);
+
+                        drawBresenham(previousPoint, currentPoint, selectedColor);
+                    }
+                    count++;
+                }
+
+                if (event.button.button == SDL_BUTTON_RIGHT)
+                {
+                    drawBresenham(currentPoint, firstPoint, selectedColor);
+
+                    return;
+                }
+            }
+        }
+    }
+}
+
+void pickColor_clicked(Point pointClicked)
+{
+    selectedColor = getPixel(pointClicked);
+}
+
+void fill_clicked()
+{
+    while (true)
+    {
+
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                /*Se o bot�o esquerdo do mouse � pressionado */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    Point pointClicked = getPoint(event.motion.x, event.motion.y);
+
+                    Uint32 currentColor = getPixel(pointClicked);
+
+                    floodFill(pointClicked, selectedColor, currentColor);
+
+                    return;
+                }
+            }
+        }
+    }
+}
+
+//----------------------------------------------------------------
+
+void takeAction(int action, Point pointClicked)
+{
+    switch (action)
+    {
+    case 0:
+        reset_screen();
+        break;
+    case 1:
+        break;
+    case 2:
+        drawLine_clicked();
+        break;
+    case 3:
+        drawRectangle_clicked();
+        break;
+    case 4:
+        drawPolygon_clicked();
+        break;
+        // case 5:
+        //     drawCircle_clicked();
+        //     break;
+        // case 6:
+        //     drawCurve_clicked();
+        //     break;
+    case 7:
+        fill_clicked();
+    case 8:
+        pickColor_clicked(pointClicked);
+        break;
+    // case 9:
+    //     undo_clicked();
+    //     break;
+    default:
+        break;
     }
 }
 
@@ -278,104 +715,83 @@ int main()
 
     SDL_Init(SDL_INIT_VIDEO);
 
-    imagem = SDL_LoadBMP(FILENAME.c_str());
+    SDL_Window *window = SDL_CreateWindow(titulo.c_str(),
+                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          640, 555, 0);
+    window_surface = SDL_GetWindowSurface(window);
 
-    if (imagem)
+    pixels = (unsigned int *)window_surface->pixels;
+    width = canvasWidth = 640;
+    canvasHeight = 480;
+
+    height = canvasHeight + 75;
+    // Fim das inicializa��es
+
+    drawScreen();
+    reset_screen();
+    printf("SDL Pixel format: %s\n",
+           SDL_GetPixelFormatName(window_surface->format->format));
+
+    while (1)
     {
+        SDL_Event event;
 
-        SDL_Window *window = SDL_CreateWindow(titulo.c_str(),
-                                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                              imagem->w, imagem->h,
-                                              SDL_WINDOW_RESIZABLE);
-
-        window_surface = SDL_GetWindowSurface(window);
-
-        SDL_BlitSurface(imagem, NULL, window_surface, NULL);
-
-        pixels = (unsigned int *)window_surface->pixels;
-        width = window_surface->w;
-        height = window_surface->h;
-
-        // Fim das inicializa��es
-
-        printf("SDL Pixel format: %s\n",
-               SDL_GetPixelFormatName(window_surface->format->format));
-
-        while (1)
+        while (SDL_PollEvent(&event))
         {
-
-            SDL_Event event;
-
-            while (SDL_PollEvent(&event))
+            if (event.type == SDL_QUIT)
             {
-                if (event.type == SDL_QUIT)
-                {
-                    exit(0);
-                }
+                exit(0);
+            }
 
-                if (event.type == SDL_KEYDOWN)
+            if (event.type == SDL_KEYDOWN)
+            {
+                switch (event.key.keysym.sym)
                 {
-                    switch (event.key.keysym.sym)
+                case SDLK_s:
+
+                    result = SDL_SaveBMP(window_surface, SAIDA.c_str());
+                    if (result < 0)
                     {
-                    case SDLK_s:
-
-                        result = SDL_SaveBMP(window_surface, SAIDA.c_str());
-                        if (result < 0)
-                        {
-                            printf("Ocorreu um erro salvando o arquivo\n");
-                        }
-                        else
-                        {
-                            printf("Arquivo salvo com sucesso!\n");
-                        }
-                        // saveImg(SAIDA,bmp);
-                        break;
-
-                    case SDLK_q:
-
-                        quadriculado(20, RGB(255, 0, 0));
-                        break;
+                        printf("Ocorreu um erro salvando o arquivo\n");
                     }
-                }
-
-                if (event.type == SDL_WINDOWEVENT)
-                {
-                    if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                    else
                     {
-                        window_surface = SDL_GetWindowSurface(window);
-                        pixels = (unsigned int *)window_surface->pixels;
-                        width = window_surface->w;
-                        height = window_surface->h;
-                        printf("Size changed: %d, %d\n", width, height);
-                        SDL_BlitSurface(imagem, NULL, window_surface, NULL);
+                        printf("Arquivo salvo com sucesso!\n");
                     }
-                }
-
-                // Se o mouse � movimentado
-                if (event.type == SDL_MOUSEMOTION)
-                {
-                    // Mostra as posi��es x e y do mouse
-                    showMousePosition(window, event.motion.x, event.motion.y);
-                }
-                if (event.type == SDL_MOUSEBUTTONDOWN)
-                {
-                    /*Se o bot�o esquerdo do mouse � pressionado */
-                    if (event.button.button == SDL_BUTTON_LEFT)
-                    {
-                        printf("Mouse pressed on (%d,%d)\n", event.motion.x, event.motion.y);
-                    }
+                    // saveImg(SAIDA,bmp);
+                    break;
                 }
             }
 
-            // Seta a cor de fundo da janela para a informada nas
-            // constantes VERMELHO, VERDE e AZUL
-            // reset_screen();
+            if (event.type == SDL_WINDOWEVENT)
+            {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                {
+                    display();
+                    // SDL_BlitSurface(imagem, NULL, window_surface, &rectPos);
+                }
+            }
 
-            // mostra_bmp(bmp);
+            // Se o mouse � movimentado
+            if (event.type == SDL_MOUSEMOTION)
+            {
+                // Mostra as posi��es x e y do mouse
+                showMousePosition(window, event.motion.x, event.motion.y);
+            }
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                /*Se o bot�o esquerdo do mouse � pressionado */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    int clickedButtonId = getClickedButton(event.motion.x, event.motion.y);
 
-            display();
-
-            SDL_UpdateWindowSurface(window);
+                    takeAction(clickedButtonId, getPoint(event.motion.x, event.motion.y));
+                }
+            }
         }
+
+        display();
+
+        SDL_UpdateWindowSurface(window);
     }
 }
