@@ -356,6 +356,44 @@ void drawRectangle(Point start, Point end)
     drawRectangle(start, end, selectedColor);
 }
 
+int calculateEuclidian(int x1, int y1, int x2, int y2)
+{
+    return (int)sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+}
+
+void displayBresenhamCircle(int xc, int yc, int x, int y)
+{
+    setPixel(xc + x, yc + y, 255, 255, 255);
+    setPixel(xc - x, yc + y, 255, 255, 255);
+    setPixel(xc + x, yc - y, 255, 255, 255);
+    setPixel(xc - x, yc - y, 255, 255, 255);
+    setPixel(xc + y, yc + x, 255, 255, 255);
+    setPixel(xc - y, yc + x, 255, 255, 255);
+    setPixel(xc + y, yc - x, 255, 255, 255);
+    setPixel(xc - y, yc - x, 255, 255, 255);
+}
+
+void drawBresenhamCircle(int xc, int yc, int radius, Uint32 cor)
+{
+    int x = 0, y = radius;
+    int decesionParameter = 3 - 2 * radius;
+    displayBresenhamCircle(xc, yc, x, y);
+
+    while (y >= x)
+    {
+        x++;
+        if (decesionParameter > 0)
+        {
+            y--;
+            decesionParameter = decesionParameter + 4 * (x - y) + 10;
+        }
+        else
+            decesionParameter = decesionParameter + 4 * x + 6;
+
+        displayBresenhamCircle(xc, yc, x, y);
+    }
+}
+
 // TRAB1 preencher (REVISAR)
 void floodFill(int x, int y, Uint32 newColor, Uint32 oldColor)
 {
@@ -553,7 +591,13 @@ void drawLine_clicked(Point pointClicked)
     int count = 0;
     Point firstPoint, secondPoint;
 
-    while (count < 2)
+    if (clickedOnToolBar(pointClicked) == false)
+    {
+        firstPoint = pointClicked;
+        count++;
+    }
+
+    while (true)
     {
         SDL_Event event;
 
@@ -569,6 +613,10 @@ void drawLine_clicked(Point pointClicked)
                     else
                     {
                         secondPoint = getPoint(event.motion.x, event.motion.y);
+
+                        drawBresenham(firstPoint, secondPoint, selectedColor);
+
+                        return;
                     }
 
                     count++;
@@ -585,7 +633,13 @@ void drawRectangle_clicked(Point pointClicked)
     int count = 0;
     Point firstPoint, secondPoint;
 
-    while (count < 2)
+    if (clickedOnToolBar(pointClicked) == false)
+    {
+        firstPoint = pointClicked;
+        count++;
+    }
+
+    while (true)
     {
         SDL_Event event;
 
@@ -601,6 +655,10 @@ void drawRectangle_clicked(Point pointClicked)
                     else
                     {
                         secondPoint = getPoint(event.motion.x, event.motion.y);
+
+                        drawRectangle(firstPoint, secondPoint, selectedColor);
+
+                        return;
                     }
 
                     count++;
@@ -700,6 +758,43 @@ void fill_clicked(Point pointClicked)
             }
         }
     }
+}
+
+void drawCircle_clicked(Point pointClicked)
+{
+    int count = 0;
+    Point firstPoint, secondPoint;
+
+    while (true)
+    {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    if (count == 0)
+                        firstPoint = getPoint(event.motion.x, event.motion.y);
+                    else
+                    {
+                        secondPoint = getPoint(event.motion.x, event.motion.y);
+
+                        int distance = calculateEuclidian(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y);
+
+                        drawBresenhamCircle(firstPoint.x, firstPoint.y, distance, selectedColor);
+
+                        return;
+                    }
+
+                    count++;
+                }
+            }
+        }
+    }
+
+    drawBresenhamCircle(firstPoint.x, firstPoint.y, calculateEuclidian(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y), selectedColor);
 }
 
 //----------------------------------------------------------------
