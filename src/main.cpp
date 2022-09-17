@@ -13,7 +13,7 @@ using namespace std;
 std::string FILENAME = "marvel-wallpaper.bmp";
 std::string SAIDA = "saida.bmp";
 
-std::string buttonImages[8] =
+std::string buttonImages[9] =
     {
         "new.bmp",
         "diskette.bmp",
@@ -22,8 +22,8 @@ std::string buttonImages[8] =
         "hexagono.bmp",
         "circulo.bmp",
         "linha-curva.bmp",
-        "fill.bmp"
-        ""};
+        "fill.bmp",
+        "desfazer.bmp"};
 
 // Estrutura para representar pontos
 typedef struct
@@ -38,7 +38,7 @@ typedef struct
 } Button;
 
 Button buttons[10];
-int buttonCount = 0;
+int buttonCount, clickedButtonId = 0;
 
 // vari�veis necess�rias para o SDL
 unsigned int *pixels;
@@ -47,10 +47,21 @@ SDL_Surface *window_surface;
 SDL_Surface *imagem;
 SDL_Renderer *renderer;
 
+SDL_Window *window;
+
 // T�tulo da janela
 std::string titulo = "SDL BMP ";
 
 Uint32 selectedColor = 0;
+
+bool drawingToolBar = false;
+
+bool clickedOnToolBar(Point point)
+{
+    return point.y > canvasHeight && point.y < height;
+}
+
+void takeAction(int action, Point pointClicked);
 
 SDL_Surface *getImage(std::string imagePath, int targetWidth, int targetHeight)
 {
@@ -139,7 +150,8 @@ Uint32 getPixel(Point position)
 // r, g, b e a variam de 0 at� 255
 void setPixel(int x, int y, int r, int g, int b, int a)
 {
-    pixels[x + y * width] = SDL_MapRGBA(window_surface->format, r, g, b, a);
+    if (x < canvasWidth && y < canvasHeight)
+        pixels[x + y * width] = SDL_MapRGBA(window_surface->format, r, g, b, a);
 }
 
 // seta um pixel em uma determinada posi��o,
@@ -175,7 +187,7 @@ void printMousePosition(int x, int y)
 // uma cor RGB
 void setPixel(int x, int y, Uint32 color)
 {
-    if ((x >= 0 && x < width && y >= 0 && y < height))
+    if ((x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight) || (drawingToolBar && x >= 0 && x < width && y >= 0 && y < height))
     {
         pixels[x + y * width] = color;
     }
@@ -388,6 +400,7 @@ void floodFill(Point p, Uint32 newColor, Uint32 oldColor)
 // Aqui ocorrem as chamadas das fun��es a ser exibidas na janela
 void display()
 {
+    SDL_UpdateWindowSurface(window);
 }
 
 int getClickedButton(int x, int y)
@@ -421,12 +434,15 @@ void reset_screen()
 // ----------------------------------------------------------------
 void drawColorPicker()
 {
-    imagem = getImage("rgb.bmp", 110, 50);
+    int imgWidth = 80, imgDepth = 50;
+
+    imagem = getImage("rgb.bmp", imgWidth, imgDepth);
 
     SDL_Rect rectPos;
 
-    rectPos.x = 410;
-    rectPos.y = 490;
+    rectPos.x = 550;
+    rectPos.y = 492;
+
     SDL_BlitSurface(imagem, NULL, window_surface, &rectPos);
 
     Button button;
@@ -434,11 +450,11 @@ void drawColorPicker()
     Point start;
     Point end;
 
-    start.x = 410;
-    start.y = 490;
+    start.x = rectPos.x;
+    start.y = rectPos.y;
 
-    end.x = 410 + 110;
-    end.y = 490 + 50;
+    end.x = start.x + imgWidth;
+    end.y = start.y + imgDepth;
 
     button.start = start;
     button.end = end;
@@ -461,17 +477,17 @@ void drawButtons()
     Uint32 backgroundColor = RGB(100, 50, 255);
     Uint32 buttonColor = RGB(255, 255, 255);
 
-    int buttonSize = 50;
+    int buttonSize = 60;
 
     int buttonOffset = 10;
 
     drawRectangle(startX, startY, endX, endY, backgroundColor);
 
-    floodFill(startX + 10, 10 + startY, backgroundColor, 0);
+    floodFill(startX + buttonOffset, buttonOffset + startY, backgroundColor, 0);
 
     int i = 0;
 
-    for (; i < 8; i++)
+    for (; i < 9; i++)
     {
         Button button;
 
@@ -482,19 +498,20 @@ void drawButtons()
         start.y = buttonOffset + startY;
 
         end.x = (i * buttonSize) + startX + buttonSize;
-        end.y = buttonSize + buttonOffset + startY;
+        end.y = buttonSize + startY;
 
         button.start = start;
         button.end = end;
 
         button.actionId = i;
 
-        imagem = getImage(buttonImages[i], buttonSize - 10, buttonSize - 10);
+        int sizeOffsetToIcon = 20;
+        imagem = getImage(buttonImages[i], buttonSize - sizeOffsetToIcon, buttonSize - sizeOffsetToIcon);
 
         SDL_Rect rectPos;
 
-        rectPos.x = start.x;
-        rectPos.y = start.y;
+        rectPos.x = start.x + sizeOffsetToIcon / 4;
+        rectPos.y = start.y + sizeOffsetToIcon / 4;
 
         drawRectangle(start, end, buttonColor);
 
@@ -519,7 +536,10 @@ void drawToolBar()
 
 void drawScreen()
 {
+    drawingToolBar = true;
     drawToolBar();
+    drawingToolBar = false;
+
     display();
 }
 // ----------------------------------------------------------------
@@ -528,7 +548,7 @@ void drawScreen()
 // Button actions
 // ----------------------------------------------------------------
 
-void drawLine_clicked()
+void drawLine_clicked(Point pointClicked)
 {
     int count = 0;
     Point firstPoint, secondPoint;
@@ -560,7 +580,7 @@ void drawLine_clicked()
     drawBresenham(firstPoint, secondPoint, selectedColor);
 }
 
-void drawRectangle_clicked()
+void drawRectangle_clicked(Point pointClicked)
 {
     int count = 0;
     Point firstPoint, secondPoint;
@@ -592,7 +612,7 @@ void drawRectangle_clicked()
     drawRectangle(firstPoint, secondPoint, selectedColor);
 }
 
-void drawPolygon_clicked()
+void drawPolygon_clicked(Point pointClicked)
 {
     int rightCliked = 0;
     int count = 0;
@@ -609,15 +629,26 @@ void drawPolygon_clicked()
                 /*Se o bot�o esquerdo do mouse � pressionado */
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
+                    Point pointClickedNow = getPoint(event.motion.x, event.motion.y);
+
                     if (count == 0)
-                        firstPoint = currentPoint = getPoint(event.motion.x, event.motion.y);
+                    {
+                        firstPoint = clickedOnToolBar(pointClicked) == false
+                                         ? pointClicked
+                                         : pointClickedNow;
+
+                        currentPoint = pointClickedNow;
+                    }
                     else
                     {
                         previousPoint = currentPoint;
-                        currentPoint = getPoint(event.motion.x, event.motion.y);
+                        currentPoint = pointClickedNow;
 
                         drawBresenham(previousPoint, currentPoint, selectedColor);
+
+                        display();
                     }
+
                     count++;
                 }
 
@@ -637,11 +668,18 @@ void pickColor_clicked(Point pointClicked)
     selectedColor = getPixel(pointClicked);
 }
 
-void fill_clicked()
+void fill_clicked(Point pointClicked)
 {
+    if (clickedOnToolBar(pointClicked) == false)
+    {
+        Uint32 currentColor = getPixel(pointClicked);
+
+        floodFill(pointClicked, selectedColor, currentColor);
+        return;
+    }
+
     while (true)
     {
-
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -650,11 +688,12 @@ void fill_clicked()
                 /*Se o bot�o esquerdo do mouse � pressionado */
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    Point pointClicked = getPoint(event.motion.x, event.motion.y);
+                    pointClicked = getPoint(event.motion.x, event.motion.y);
 
                     Uint32 currentColor = getPixel(pointClicked);
 
-                    floodFill(pointClicked, selectedColor, currentColor);
+                    if (clickedOnToolBar(pointClicked) == false && selectedColor != currentColor)
+                        floodFill(pointClicked, selectedColor, currentColor);
 
                     return;
                 }
@@ -675,13 +714,13 @@ void takeAction(int action, Point pointClicked)
     case 1:
         break;
     case 2:
-        drawLine_clicked();
+        drawLine_clicked(pointClicked);
         break;
     case 3:
-        drawRectangle_clicked();
+        drawRectangle_clicked(pointClicked);
         break;
     case 4:
-        drawPolygon_clicked();
+        drawPolygon_clicked(pointClicked);
         break;
         // case 5:
         //     drawCircle_clicked();
@@ -690,7 +729,8 @@ void takeAction(int action, Point pointClicked)
         //     drawCurve_clicked();
         //     break;
     case 7:
-        fill_clicked();
+        fill_clicked(pointClicked);
+        break;
     case 8:
         pickColor_clicked(pointClicked);
         break;
@@ -715,9 +755,9 @@ int main()
 
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_Window *window = SDL_CreateWindow(titulo.c_str(),
-                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          640, 555, 0);
+    window = SDL_CreateWindow(titulo.c_str(),
+                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                              640, 555, 0);
     window_surface = SDL_GetWindowSurface(window);
 
     pixels = (unsigned int *)window_surface->pixels;
@@ -783,7 +823,10 @@ int main()
                 /*Se o bot�o esquerdo do mouse � pressionado */
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    int clickedButtonId = getClickedButton(event.motion.x, event.motion.y);
+                    int clickedButton = getClickedButton(event.motion.x, event.motion.y);
+
+                    if (clickedButton != -1)
+                        clickedButtonId = clickedButton;
 
                     takeAction(clickedButtonId, getPoint(event.motion.x, event.motion.y));
                 }
@@ -791,7 +834,5 @@ int main()
         }
 
         display();
-
-        SDL_UpdateWindowSurface(window);
     }
 }
