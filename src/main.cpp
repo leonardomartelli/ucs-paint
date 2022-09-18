@@ -38,12 +38,14 @@ typedef struct
 } Button;
 
 Button buttons[10];
-int buttonCount, clickedButtonId = 0;
+int buttonCount, clickedButtonId = -1;
 
 // vari�veis necess�rias para o SDL
 unsigned int *pixels;
 int canvasWidth, canvasHeight, width, height;
 SDL_Surface *window_surface;
+SDL_Surface *previous_window_surface;
+
 SDL_Surface *imagem;
 SDL_Renderer *renderer;
 
@@ -56,12 +58,16 @@ Uint32 selectedColor = 0;
 
 bool drawingToolBar = false;
 
+Uint32 RGB(int r, int g, int b);
+
+Uint32 backgroundColor;
+
+void takeAction(int action, Point pointClicked);
+
 bool clickedOnToolBar(Point point)
 {
     return point.y > canvasHeight && point.y < height;
 }
-
-void takeAction(int action, Point pointClicked);
 
 SDL_Surface *getImage(std::string imagePath, int targetWidth, int targetHeight)
 {
@@ -122,6 +128,64 @@ SDL_Surface *getImage(std::string imagePath, int targetWidth, int targetHeight)
     }
 
     return NULL;
+}
+
+void save()
+{
+    SDL_SaveBMP(window_surface, "testecompleto.bmp");
+
+    SDL_LockSurface(window_surface);
+
+    SDL_Rect sourceDimensions;
+    sourceDimensions.x = 0;
+    sourceDimensions.y = 0;
+    sourceDimensions.w = width;
+    sourceDimensions.h = height;
+
+    float scaleW = (float)canvasWidth / (float)width;
+    float scaleH = (float)canvasHeight / (float)height;
+
+    SDL_Rect targetDimensions;
+    targetDimensions.x = 0;
+    targetDimensions.y = 0;
+    targetDimensions.w = (int)(width * scaleW);
+    targetDimensions.h = (int)(height * scaleH);
+
+    SDL_Surface *surface32 = SDL_CreateRGBSurface(
+        window_surface->flags,
+        sourceDimensions.w,
+        sourceDimensions.h,
+        32,
+        window_surface->format->Rmask,
+        window_surface->format->Gmask,
+        window_surface->format->Bmask,
+        window_surface->format->Amask);
+
+    SDL_BlitSurface(window_surface, NULL, surface32, NULL);
+
+    SDL_Surface *scaleSurface = SDL_CreateRGBSurface(
+        surface32->flags,
+        targetDimensions.w,
+        targetDimensions.h,
+        surface32->format->BitsPerPixel,
+        surface32->format->Rmask,
+        surface32->format->Gmask,
+        surface32->format->Bmask,
+        surface32->format->Amask);
+
+    SDL_BlitScaled(surface32, NULL, scaleSurface, NULL);
+
+    SDL_Surface *sourceImage = scaleSurface;
+
+    SDL_FreeSurface(surface32);
+    surface32 = NULL;
+
+    int result = SDL_SaveBMP(scaleSurface, SAIDA.c_str());
+
+    SDL_FreeSurface(scaleSurface);
+    scaleSurface = NULL;
+
+    SDL_UnlockSurface(window_surface);
 }
 
 // Gera uma estrutura Point a partir de valores para x e y
@@ -187,6 +251,7 @@ void printMousePosition(int x, int y)
 // uma cor RGB
 void setPixel(int x, int y, Uint32 color)
 {
+
     if ((x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight) || (drawingToolBar && x >= 0 && x < width && y >= 0 && y < height))
     {
         pixels[x + y * width] = color;
@@ -361,23 +426,23 @@ int calculateEuclidian(int x1, int y1, int x2, int y2)
     return (int)sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
 }
 
-void displayBresenhamCircle(int xc, int yc, int x, int y)
+void displayBresenhamCircle(int xc, int yc, int x, int y, Uint32 color)
 {
-    setPixel(xc + x, yc + y, 255, 255, 255);
-    setPixel(xc - x, yc + y, 255, 255, 255);
-    setPixel(xc + x, yc - y, 255, 255, 255);
-    setPixel(xc - x, yc - y, 255, 255, 255);
-    setPixel(xc + y, yc + x, 255, 255, 255);
-    setPixel(xc - y, yc + x, 255, 255, 255);
-    setPixel(xc + y, yc - x, 255, 255, 255);
-    setPixel(xc - y, yc - x, 255, 255, 255);
+    setPixel(xc + x, yc + y, color);
+    setPixel(xc - x, yc + y, color);
+    setPixel(xc + x, yc - y, color);
+    setPixel(xc - x, yc - y, color);
+    setPixel(xc + y, yc + x, color);
+    setPixel(xc - y, yc + x, color);
+    setPixel(xc + y, yc - x, color);
+    setPixel(xc - y, yc - x, color);
 }
 
 void drawBresenhamCircle(int xc, int yc, int radius, Uint32 cor)
 {
     int x = 0, y = radius;
     int decesionParameter = 3 - 2 * radius;
-    displayBresenhamCircle(xc, yc, x, y);
+    displayBresenhamCircle(xc, yc, x, y, cor);
 
     while (y >= x)
     {
@@ -390,7 +455,7 @@ void drawBresenhamCircle(int xc, int yc, int radius, Uint32 cor)
         else
             decesionParameter = decesionParameter + 4 * x + 6;
 
-        displayBresenhamCircle(xc, yc, x, y);
+        displayBresenhamCircle(xc, yc, x, y, cor);
     }
 }
 
@@ -497,9 +562,9 @@ void drawColorPicker()
     button.start = start;
     button.end = end;
 
-    button.actionId = 8;
+    button.actionId = 9;
 
-    buttons[8] = button;
+    buttons[9] = button;
 
     buttonCount++;
 }
@@ -512,8 +577,9 @@ void drawButtons()
     int startY = canvasHeight + 1;
     int endY = height - 1;
 
-    Uint32 backgroundColor = RGB(100, 50, 255);
     Uint32 buttonColor = RGB(255, 255, 255);
+
+    backgroundColor = RGB(100, 50, 255);
 
     int buttonSize = 60;
 
@@ -765,6 +831,12 @@ void drawCircle_clicked(Point pointClicked)
     int count = 0;
     Point firstPoint, secondPoint;
 
+    if (clickedOnToolBar(pointClicked) == false)
+    {
+        firstPoint = pointClicked;
+        count++;
+    }
+
     while (true)
     {
         SDL_Event event;
@@ -793,8 +865,75 @@ void drawCircle_clicked(Point pointClicked)
             }
         }
     }
+}
 
-    drawBresenhamCircle(firstPoint.x, firstPoint.y, calculateEuclidian(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y), selectedColor);
+int bezier(float u, float x1, float x2, float x3, float x4)
+{
+    return pow((1 - u), 3) * x1 + 3 * u * pow((1 - u), 2) * x2 + 3 * pow(u, 2) * (1 - u) * x3 + pow(u, 3) * x4;
+}
+
+void drawCurve_clicked(Point pointClicked)
+{
+    int count = 0;
+    Point points[4];
+
+    if (clickedOnToolBar(pointClicked) == false)
+    {
+        points[0] = pointClicked;
+        count++;
+    }
+
+    while (true)
+    {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    Point currentPoint = getPoint(event.motion.x, event.motion.y);
+
+                    points[count] = currentPoint;
+
+                    count++;
+
+                    if (count == 4)
+                    {
+                        for (float u = 0; u < 1; u += 0.0001)
+                        {
+                            int x = bezier(u, points[0].x, points[1].x, points[2].x, points[3].x);
+                            int y = bezier(u, points[0].y, points[1].y, points[2].y, points[3].y);
+
+                            setPixel(x, y, selectedColor);
+                        }
+
+                        display();
+
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void undo_clicked()
+{
+
+    SDL_BlitSurface(previous_window_surface, NULL, window_surface, NULL);
+    display();
+}
+
+void cloneSurface()
+{
+    SDL_BlitSurface(window_surface, NULL, previous_window_surface, NULL);
+}
+
+bool shouldUnselect(int clickedButton)
+{
+    return clickedButton > 1 && clickedButton < 8;
 }
 
 //----------------------------------------------------------------
@@ -807,7 +946,8 @@ void takeAction(int action, Point pointClicked)
         reset_screen();
         break;
     case 1:
-        break;
+        save();
+        return;
     case 2:
         drawLine_clicked(pointClicked);
         break;
@@ -817,24 +957,77 @@ void takeAction(int action, Point pointClicked)
     case 4:
         drawPolygon_clicked(pointClicked);
         break;
-        // case 5:
-        //     drawCircle_clicked();
-        //     break;
-        // case 6:
-        //     drawCurve_clicked();
-        //     break;
+    case 5:
+        drawCircle_clicked(pointClicked);
+        break;
+    case 6:
+        drawCurve_clicked(pointClicked);
+        break;
     case 7:
         fill_clicked(pointClicked);
         break;
-    case 8:
+    case 9:
         pickColor_clicked(pointClicked);
+        return;
+    case 8:
+        undo_clicked();
         break;
-    // case 9:
-    //     undo_clicked();
-    //     break;
     default:
-        break;
+        return;
     }
+
+    cloneSurface();
+}
+
+void selectButton(int buttonId)
+{
+    if (buttonId == -1)
+        return;
+
+    Button button = buttons[buttonId];
+
+    Point start = button.start;
+
+    start.x -= 3;
+    start.y -= 3;
+
+    Point end = button.end;
+
+    end.x += 3;
+    end.y += 3;
+
+    Uint32 red = RGB(255, 0, 0);
+
+    drawRectangle(start, end, red);
+
+    display();
+
+    start.x++;
+    start.y++;
+
+    floodFill(start, red, backgroundColor);
+
+    display();
+}
+
+void unselectButton(int buttonId)
+{
+    if (buttonId == -1)
+        return;
+
+    Button button = buttons[buttonId];
+
+    Point start = button.start;
+
+    start.x -= 2;
+    start.y -= 2;
+
+    Uint32 red = RGB(255, 0, 0);
+
+    start.x++;
+    start.y++;
+
+    floodFill(start, backgroundColor, red);
 }
 
 // void copia_para_bmp(Bit)
@@ -853,7 +1046,17 @@ int main()
     window = SDL_CreateWindow(titulo.c_str(),
                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                               640, 555, 0);
+
     window_surface = SDL_GetWindowSurface(window);
+
+    previous_window_surface = SDL_CreateRGBSurface(
+        window_surface->flags,
+        640, 555,
+        window_surface->format->BitsPerPixel,
+        window_surface->format->Rmask,
+        window_surface->format->Gmask,
+        window_surface->format->Bmask,
+        window_surface->format->Amask);
 
     pixels = (unsigned int *)window_surface->pixels;
     width = canvasWidth = 640;
@@ -921,7 +1124,24 @@ int main()
                     int clickedButton = getClickedButton(event.motion.x, event.motion.y);
 
                     if (clickedButton != -1)
+                    {
+
+                        if (shouldUnselect(clickedButton))
+                        {
+
+                            drawingToolBar = true;
+
+                            unselectButton(clickedButtonId);
+                        }
+
                         clickedButtonId = clickedButton;
+                        if (shouldUnselect(clickedButton))
+                        {
+                            selectButton(clickedButtonId);
+
+                            drawingToolBar = false;
+                        }
+                    }
 
                     takeAction(clickedButtonId, getPoint(event.motion.x, event.motion.y));
                 }
