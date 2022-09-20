@@ -10,9 +10,6 @@
 
 using namespace std;
 
-std::string FILENAME = "marvel-wallpaper.bmp";
-std::string SAIDA = "saida.bmp";
-
 std::string buttonImages[9] =
     {
         "new.bmp",
@@ -25,7 +22,6 @@ std::string buttonImages[9] =
         "fill.bmp",
         "desfazer.bmp"};
 
-// Estrutura para representar pontos
 typedef struct
 {
     int x, y;
@@ -40,7 +36,6 @@ typedef struct
 Button buttons[10];
 int buttonCount, clickedButtonId = -1;
 
-// vari�veis necess�rias para o SDL
 unsigned int *pixels;
 int canvasWidth, canvasHeight, width, height;
 SDL_Surface *window_surface;
@@ -53,7 +48,6 @@ SDL_Window *window;
 
 int fileCount = 0;
 
-// T�tulo da janela
 std::string titulo = "SDL BMP ";
 
 Uint32 selectedColor = 0;
@@ -186,7 +180,6 @@ void save()
     SDL_SaveBMP(canvas, fileName.str().c_str());
 }
 
-// Gera uma estrutura Point a partir de valores para x e y
 Point getPoint(int x, int y)
 {
     Point p;
@@ -195,7 +188,6 @@ Point getPoint(int x, int y)
     return p;
 }
 
-// Obt�m a cor de um pixel de uma determinada posi��o
 Uint32 getPixel(Point position)
 {
     int x = position.x;
@@ -207,7 +199,6 @@ Uint32 getPixel(Point position)
         return -1;
 }
 
-// seta um pixel em uma determinada posi��o,
 // atrav�s da coordenadas de cor r, g, b, e alpha (transpar�ncia)
 // r, g, b e a variam de 0 at� 255
 void setPixel(int x, int y, int r, int g, int b, int a)
@@ -216,9 +207,6 @@ void setPixel(int x, int y, int r, int g, int b, int a)
         pixels[x + y * width] = SDL_MapRGBA(window_surface->format, r, g, b, a);
 }
 
-// seta um pixel em uma determinada posi��o,
-// atrav�s da coordenadas de cor r, g e b
-// r, g, e b variam de 0 at� 255
 void setPixel(int x, int y, int r, int g, int b)
 {
     setPixel(x, y, r, g, b, 255);
@@ -229,8 +217,6 @@ void setPixel(Point point, int r, int g, int b)
     setPixel(point.x, point.y, r, g, b, 255);
 }
 
-// Mostra na barra de t�tulo da janela a posi��o
-// corrente do mouse
 void showMousePosition(SDL_Window *window, int x, int y)
 {
     std::stringstream ss;
@@ -238,15 +224,6 @@ void showMousePosition(SDL_Window *window, int x, int y)
     SDL_SetWindowTitle(window, ss.str().c_str());
 }
 
-// Imprime na console a posi��o corrente do mouse
-void printMousePosition(int x, int y)
-{
-    printf("Mouse on x = %d, y = %d\n", x, y);
-}
-
-// seta um pixel em uma determinada posi��o,
-// atrav�s de um Uint32 representando
-// uma cor RGB
 void setPixel(int x, int y, Uint32 color)
 {
 
@@ -256,50 +233,14 @@ void setPixel(int x, int y, Uint32 color)
     }
 }
 
-// retorna uma cor RGB(UInt32) formada
-// pelas componentes r, g, b e a(transpar�ncia)
-// informadas. r, g, b e a variam de 0 at� 255
 Uint32 RGB(int r, int g, int b, int a)
 {
     return SDL_MapRGBA(window_surface->format, r, g, b, a);
 }
 
-// retorna uma cor RGB(UInt32) formada
-// pelas componentes r, g, e b
-// informadas. r, g e b variam de 0 at� 255
-// a transpar�ncia � sempre 255 (imagem opaca)
 Uint32 RGB(int r, int g, int b)
 {
     return RGB(r, g, b, 255);
-}
-
-// retorna um componente de cor de uma cor RGB informada
-// aceita os par�metros 'r', 'R','g', 'G','b' e 'B',
-Uint8 getColorComponent(Uint32 pixel, char component)
-{
-    Uint32 mask;
-
-    switch (component)
-    {
-    case 'b':
-    case 'B':
-        mask = RGB(0, 0, 255);
-        pixel = pixel & mask;
-        break;
-    case 'r':
-    case 'R':
-        mask = RGB(255, 0, 0);
-        pixel = pixel & mask;
-        pixel = pixel >> 16;
-        break;
-    case 'g':
-    case 'G':
-        mask = RGB(0, 255, 0);
-        pixel = pixel & mask;
-        pixel = pixel >> 8;
-        break;
-    }
-    return (Uint8)pixel;
 }
 
 void drawBresenham(int x1, int y1, int x2, int y2, Uint32 cor)
@@ -457,7 +398,11 @@ void drawBresenhamCircle(int xc, int yc, int radius, Uint32 cor)
     }
 }
 
-// TRAB1 preencher (REVISAR)
+int bezier(float u, float x1, float x2, float x3, float x4)
+{
+    return pow((1 - u), 3) * x1 + 3 * u * pow((1 - u), 2) * x2 + 3 * pow(u, 2) * (1 - u) * x3 + pow(u, 3) * x4;
+}
+
 void floodFill(int x, int y, Uint32 newColor, Uint32 oldColor)
 {
     if (y < 0 || y > height - 1 || x < 0 || x > width - 1)
@@ -498,7 +443,6 @@ void floodFill(Point p, Uint32 newColor, Uint32 oldColor)
     floodFill(p.x, p.y, newColor, oldColor);
 }
 
-// Aqui ocorrem as chamadas das fun��es a ser exibidas na janela
 void display()
 {
     SDL_UpdateWindowSurface(window);
@@ -901,11 +845,6 @@ void drawCircle_clicked(Point pointClicked)
     }
 }
 
-int bezier(float u, float x1, float x2, float x3, float x4)
-{
-    return pow((1 - u), 3) * x1 + 3 * u * pow((1 - u), 2) * x2 + 3 * pow(u, 2) * (1 - u) * x3 + pow(u, 3) * x4;
-}
-
 void drawCurve_clicked(Point pointClicked)
 {
     int count = 0;
@@ -959,11 +898,6 @@ void undo_clicked()
 {
     SDL_BlitSurface(previous_window_surface, NULL, window_surface, NULL);
     display();
-}
-
-bool shouldUnselect(int clickedButton)
-{
-    return clickedButton > 1 && clickedButton < 8;
 }
 
 //----------------------------------------------------------------
@@ -1038,6 +972,11 @@ void selectButton(int buttonId)
     display();
 }
 
+bool shouldUnselect(int clickedButton)
+{
+    return clickedButton > 1 && clickedButton < 8;
+}
+
 void unselectButton(int buttonId)
 {
     if (buttonId == -1)
@@ -1058,15 +997,37 @@ void unselectButton(int buttonId)
     floodFill(start, backgroundColor, red);
 }
 
-// void copia_para_bmp(Bit)
-//  Inicializa o SDL, abre a janela e controla o loop
-//  principal do controle de eventos
-int main()
+void draw(int clickedButton, Point pointClicked)
 {
-    // Inicializa��es iniciais obrigat�rias
+    int currentClickedButton = clickedButtonId;
 
-    int result;
+    if (clickedButton != -1)
+    {
+        if (shouldUnselect(clickedButton))
+        {
+            drawingToolBar = true;
 
+            unselectButton(clickedButtonId);
+        }
+
+        clickedButtonId = clickedButton;
+
+        if (shouldUnselect(clickedButton))
+        {
+            selectButton(clickedButtonId);
+
+            drawingToolBar = false;
+        }
+    }
+
+    takeAction(clickedButtonId, pointClicked);
+
+    if (shouldUnselect(clickedButton) == false)
+        clickedButtonId = currentClickedButton;
+}
+
+int main(int argc, char *argv[])
+{
     setlocale(LC_ALL, NULL);
 
     SDL_Init(SDL_INIT_VIDEO);
@@ -1077,24 +1038,34 @@ int main()
 
     window_surface = SDL_GetWindowSurface(window);
 
+    pixels = (unsigned int *)window_surface->pixels;
+    width = canvasWidth = 640;
+    canvasHeight = 480;
+
     previous_window_surface = SDL_CreateRGBSurface(
         window_surface->flags,
-        640, 480,
+        canvasWidth, canvasHeight,
         window_surface->format->BitsPerPixel,
         window_surface->format->Rmask,
         window_surface->format->Gmask,
         window_surface->format->Bmask,
         window_surface->format->Amask);
 
-    pixels = (unsigned int *)window_surface->pixels;
-    width = canvasWidth = 640;
-    canvasHeight = 480;
-
     height = canvasHeight + 75;
-    // Fim das inicializa��es
 
     drawScreen();
     reset_screen();
+
+    if (argc == 2)
+    {
+        SDL_Surface *loadedImage;
+
+        loadedImage = getImage(argv[1], canvasWidth, canvasHeight);
+
+        if (loadedImage)
+            SDL_BlitSurface(loadedImage, NULL, window_surface, NULL);
+    }
+
     printf("SDL Pixel format: %s\n",
            SDL_GetPixelFormatName(window_surface->format->format));
 
@@ -1105,26 +1076,28 @@ int main()
         while (SDL_PollEvent(&event))
         {
             if (event.type == SDL_QUIT)
-            {
                 exit(0);
-            }
 
             if (event.type == SDL_KEYDOWN)
             {
+                Point defaultPoint;
+
+                defaultPoint.x = 50;
+                defaultPoint.y = canvasHeight + 10;
+
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_s:
-
-                    result = SDL_SaveBMP(window_surface, SAIDA.c_str());
-                    if (result < 0)
-                    {
-                        printf("Ocorreu um erro salvando o arquivo\n");
-                    }
-                    else
-                    {
-                        printf("Arquivo salvo com sucesso!\n");
-                    }
-                    // saveImg(SAIDA,bmp);
+                    save();
+                    break;
+                case SDLK_r:
+                    draw(2, defaultPoint);
+                    break;
+                case SDLK_p:
+                    draw(4, defaultPoint);
+                    break;
+                case SDLK_c:
+                    draw(5, defaultPoint);
                     break;
                 }
             }
@@ -1132,50 +1105,19 @@ int main()
             if (event.type == SDL_WINDOWEVENT)
             {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-                {
                     display();
-                    // SDL_BlitSurface(imagem, NULL, window_surface, &rectPos);
-                }
             }
 
-            // Se o mouse � movimentado
             if (event.type == SDL_MOUSEMOTION)
-            {
-                // Mostra as posi��es x e y do mouse
                 showMousePosition(window, event.motion.x, event.motion.y);
-            }
+
             if (event.type == SDL_MOUSEBUTTONDOWN)
             {
-                /*Se o bot�o esquerdo do mouse � pressionado */
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     int clickedButton = getClickedButton(event.motion.x, event.motion.y);
 
-                    int currentClickedButton = clickedButtonId;
-
-                    if (clickedButton != -1)
-                    {
-                        if (shouldUnselect(clickedButton))
-                        {
-                            drawingToolBar = true;
-
-                            unselectButton(clickedButtonId);
-                        }
-
-                        clickedButtonId = clickedButton;
-
-                        if (shouldUnselect(clickedButton))
-                        {
-                            selectButton(clickedButtonId);
-
-                            drawingToolBar = false;
-                        }
-                    }
-
-                    takeAction(clickedButtonId, getPoint(event.motion.x, event.motion.y));
-
-                    if (shouldUnselect(clickedButton) == false)
-                        clickedButtonId = currentClickedButton;
+                    draw(clickedButton, getPoint(event.motion.x, event.motion.y));
                 }
             }
         }
